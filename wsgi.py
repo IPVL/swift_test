@@ -113,7 +113,7 @@ if __name__ == '__main__':
 
     from eventlet import wsgi, listen
 
-    listener = listen(('127.0.0.1', 8080))
-    sock2 = listener.dup()
+    sock = listen(('127.0.0.1', 8080))
+    # sock2 = listener.dup()
     app = loadapp('config:proxy-server.conf', relative_to='.')
-    wsgi.server(sock=sock2, site=app)
+    wsgi.server(sock=sock, site=app)

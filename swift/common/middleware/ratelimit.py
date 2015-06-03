@@ -14,7 +14,7 @@ class RateLimitMiddleware(object):
     def __call__(self, env, start_response):
         pass  # (WIS) print "%s %s\n" % (self.__class__.__name__, env)
         start_response('200 OK', [('Content-Type', 'text/plain')])
-        return self.__class__.__name__
+        return self.__class__.__name__ + "  ->  " + self.app(env, start_response)
 
 
 def filter_factory(global_conf, **local_conf):
