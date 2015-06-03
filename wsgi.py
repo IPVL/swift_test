@@ -99,7 +99,6 @@ def loadapp(conf_file, global_conf=None, relative_to='.', name=None, allow_modif
     Loads a context from a config file, and if the context is a pipeline
     then presents the app with the opportunity to modify the pipeline.
     """
-    # print 'Custom loadapp'
     global_conf = global_conf or {}
     ctx = loadwsgi.loadcontext(loadwsgi.APP, conf_file, name=name, relative_to=relative_to, global_conf=global_conf)
     # if ctx.object_type.name == 'pipeline':

@@ -1,7 +1,7 @@
 from swift.inspect_custom import  whoami, whosdaddy
 
 
-print __name__
+pass  # (WIS) print __name__
 
 required_filters = [
     {'name': 'catch_errors'},
@@ -17,11 +17,11 @@ required_filters = [
 class Application(object):
     """docstring for Application"""
     def __init__(self, arg=None):
-        print "%s %s (%s -> %s)" % (__name__, self.__class__.__name__, whosdaddy(), whoami())
+        pass  # (WIS) print "%s %s (%s -> %s)" % (__name__, self.__class__.__name__, whosdaddy(), whoami())
         self.arg = arg
 
     def __call__(self, env, start_response):
-        print "%s %s" % (self.__class__.__name__, env)
+        pass  # (WIS) print "%s %s" % (self.__class__.__name__, env)
         start_response('200 OK', [('Content-Type', 'text/plain')])
         return self.__class__.__name__
 
@@ -43,20 +43,20 @@ class Application(object):
                         insert_at = max(insert_at, pipe.index(after) + 1)
                     except ValueError:  # not in pipeline; ignore it
                         pass
-                print 'Adding required filter %s to pipeline at position %d' % (filter_name, insert_at)
+                pass  # (WIS) print 'Adding required filter %s to pipeline at position %d' % (filter_name, insert_at)
                 ctx = pipe.create_filter(filter_name)
                 pipe.insert_filter(ctx, index=insert_at)
                 pipeline_was_modified = True
 
         if pipeline_was_modified:
-            print "Pipeline was modified. New pipeline is \"%s\".", pipe
+            pass  # (WIS) print "Pipeline was modified. New pipeline is \"%s\".", pipe
         else:
-            print "Pipeline is \"%s\"", pipe
+            pass  # (WIS) print "Pipeline is \"%s\"", pipe
 
 
 def app_factory(global_conf, **local_conf):
     """paste.deploy app factory for creating WSGI proxy apps."""
-    print "%s (%s -> %s)" % (__name__, whosdaddy(), whoami())
+    pass  # (WIS) print "%s (%s -> %s)" % (__name__, whosdaddy(), whoami())
     conf = global_conf.copy()
     conf.update(local_conf)
     app = Application(conf)

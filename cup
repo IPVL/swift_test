@@ -8,7 +8,6 @@ USAGE="USAGE:\
 		\noption:\t\tspecify comment's name which is useful to\
 		uncomment specified comments later.
 		\n"
-# echo -e $USAGE
 
 function comment {
 	dir=$1
@@ -22,7 +21,7 @@ function comment {
 		if [ -d "$i" ]; then
 			comment $i $2
 		elif [ -f "$i" ]; then
-			if [[ $i != *.pyc ]]; then
+			if [[ $i == *.py ]]; then
 				sed -e "s:\(^ *\)print:\1pass  # ($2) print:g" $i > $i.tmp && mv $i.tmp $i
 			fi
 		fi
@@ -38,7 +37,7 @@ function uncomment {
 		if [ -d "$i" ]; then
 			uncomment $i $2
 		elif [ -f "$i" ]; then
-			if [[ $i != *.pyc ]]; then
+			if [[ $i == *.py ]]; then
 				sed -e "s:pass  # ($2) \(print\):\1:g" $i > $i.tmp && mv $i.tmp $i
 			fi
 	  fi
@@ -47,6 +46,7 @@ function uncomment {
 
 option=""
 if [ "$#" -lt 2 ]; then
+    echo -e "ERROR: Passing wrong number of arguments."
     echo -e $USAGE
     exit 0
 elif [ "$#" -gt  2 ]; then
@@ -61,6 +61,7 @@ do
 	# dir="${dir%%*( )}"
 
     if [ ! -d $dir ] && [ ! -f $dir ]; then
+        echo -e "ERROR: Not a file or directory."
 		echo -e $USAGE
 		exit 0
 	fi
