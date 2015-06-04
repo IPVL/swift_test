@@ -1,4 +1,4 @@
-from swift.inspect_custom import  whoami, whosdaddy
+from swift.ipvl.inspect_custom import whoami, whosdaddy
 
 
 pass  # (WIS) print __name__
