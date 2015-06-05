@@ -1,0 +1,84 @@
+#!/bin/bash
+
+USAGE="USAGE:\
+		\ncup command file/folder[\"f f ...\"] [option]\n
+		\ncommand:\t'comment' - comment out 'print' in python file.
+		\n\t\t'uncomment' - uncomment previously commented out 'print'
+		\n
+		\noption:\t\tspecify comment's name which is useful to\
+		uncomment specified comments later.
+		\n"
+
+function comment {
+	dir=$1
+	if [ -d "$dir" ]; then
+		dir=$dir/*
+	fi
+
+	# echo $dir
+
+	for i in $dir ; do
+		if [ -d "$i" ]; then
+			comment $i $2
+		elif [ -f "$i" ]; then
+			if [[ $i == *.py ]]; then
+				sed -e "s:\(^ *\)print:\1pass  # ($2) print:g" $i > $i.tmp && mv $i.tmp $i
+			fi
+		fi
+	done
+}
+
+function uncomment {
+	dir=$1
+	if [ -d "$dir" ]; then
+		dir=$dir/*
+	fi
+	for i in $dir ; do
+		if [ -d "$i" ]; then
+			uncomment $i $2
+		elif [ -f "$i" ]; then
+			if [[ $i == *.py ]]; then
+				sed -e "s:pass  # ($2) \(print\):\1:g" $i > $i.tmp && mv $i.tmp $i
+			fi
+	  fi
+	done
+}
+
+option=""
+if [ "$#" -lt 2 ]; then
+    echo -e "ERROR: Passing wrong number of arguments."
+    echo -e $USAGE
+    exit 0
+elif [ "$#" -gt  2 ]; then
+	option=$3
+fi
+
+for dir in $2
+do
+	# ### Trim leading whitespaces ###
+	# dir="${dir##*( )}"
+	# ### trim trailing whitespaces  ##
+	# dir="${dir%%*( )}"
+
+    if [ ! -d $dir ] && [ ! -f $dir ]; then
+        echo -e "ERROR: Not a file or directory."
+		echo -e $USAGE
+		exit 0
+	fi
+
+	if [ "${dir: -1}" == "/" ]; then
+		dir="${dir:0:${#dir}-1}"
+	fi
+
+	if [[ $1 == comment ]]; then
+		comment $dir $option
+	elif [[ $1 == uncomment ]]; then
+		uncomment $dir $option
+	elif [[ condition ]]; then
+		echo -e $USAGE
+		exit 0
+	fi
+done
+
+
+
