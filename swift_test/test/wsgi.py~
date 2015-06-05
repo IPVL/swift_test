@@ -1,5 +1,11 @@
 from paste.deploy import loadwsgi
+from os.path import isfile
+
+import sys
 import logging
+
+pass  # (clac) print 'Number of arguments:', len(sys.argv), 'arguments.'
+pass  # (clac) print 'Argument List:', str(sys.argv)
 
 
 class WSGILog(object):
@@ -18,9 +24,7 @@ class PipelineWrapper(object):
     """
 
     def __init__(self, context):
-        # print(' initin  PipelineWrapper in wsgi.py')
         self.context = context
-        # print(' context in PipelineWrapper in wsgi.py'%self.context)
 
     def __contains__(self, entry_point_name):
         try:
@@ -66,10 +70,7 @@ class PipelineWrapper(object):
 
         :returns: a filter context
         """
-
-        print('entry_point_name = %s '%entry_point_name)
         spec = 'egg:swift#' + entry_point_name
-        print(' spec = %s '%spec)
         ctx = loadwsgi.loadcontext(loadwsgi.FILTER, spec,
                                    global_conf=self.context.global_conf)
         ctx.protocol = 'paste.filter_factory'
@@ -116,14 +117,20 @@ def loadapp(conf_file, global_conf=None, relative_to='.', name=None, allow_modif
           if func and allow_modify_pipeline:
              func(PipelineWrapper(ctx))
     print('ctx = %s'%ctx)
-
+    # ctx.create()
+    # print('ctx_create '%ctx.create())
     return ctx.create()
 
 if __name__ == '__main__':
 
     from eventlet import wsgi, listen
 
-    sock = listen(('127.0.0.1', 8081))
+    sock = listen(('127.0.0.1', 8080))
     # sock2 = listener.dup()
-    app = loadapp('config:proxy-server.conf', relative_to='.')
+
+    conf = 'proxy-server.conf'
+    if len(sys.argv) >= 2 and isfile(sys.argv[1]):
+        conf = sys.argv[1]
+    app = loadapp('config:'+conf, relative_to='.')
+    print('app = %s '%app)
     wsgi.server(sock=sock, site=app)
