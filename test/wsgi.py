@@ -1,5 +1,11 @@
 from paste.deploy import loadwsgi
+from os.path import isfile
+
+import sys
 import logging
+
+pass  # (clac) print 'Number of arguments:', len(sys.argv), 'arguments.'
+pass  # (clac) print 'Argument List:', str(sys.argv)
 
 
 class WSGILog(object):
@@ -115,5 +121,9 @@ if __name__ == '__main__':
 
     sock = listen(('127.0.0.1', 8080))
     # sock2 = listener.dup()
-    app = loadapp('config:proxy-server.conf', relative_to='.')
+
+    conf = 'proxy-server.conf'
+    if len(sys.argv) >= 2 and isfile(sys.argv[1]):
+        conf = sys.argv[1]
+    app = loadapp('config:'+conf, relative_to='.')
     wsgi.server(sock=sock, site=app)
