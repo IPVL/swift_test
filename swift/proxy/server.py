@@ -1,4 +1,4 @@
-from swift.inspect_custom import  whoami, whosdaddy
+from swift.ipvl.inspect_custom import  whoami, whosdaddy
 
 
 pass  # (WIS) print __name__
@@ -33,25 +33,34 @@ class Application(object):
         :param pipe: A PipelineWrapper object
         """
         pipeline_was_modified = False
+        print 'pipe: %s ' % pipe
         for filter_spec in reversed(required_filters):
             filter_name = filter_spec['name']
+            print 'filter name : %s ' % filter_name
             if filter_name not in pipe:
                 afters = filter_spec.get('after_fn', lambda _junk: [])(pipe)
+                print '%s after : %s ' % (filter_name, afters)
                 insert_at = 0
                 for after in afters:
                     try:
                         insert_at = max(insert_at, pipe.index(after) + 1)
                     except ValueError:  # not in pipeline; ignore it
                         pass
-                pass  # (WIS) print 'Adding required filter %s to pipeline at position %d' % (filter_name, insert_at)
+                # self.logger.info(
+                #     'Adding required filter %s to pipeline at position %d' %
+                #     (filter_name, insert_at))
+                print 'Adding required filter %s to pipeline at position %d' % (filter_name, insert_at)
                 ctx = pipe.create_filter(filter_name)
                 pipe.insert_filter(ctx, index=insert_at)
                 pipeline_was_modified = True
 
         if pipeline_was_modified:
-            pass  # (WIS) print "Pipeline was modified. New pipeline is \"%s\".", pipe
+            # self.logger.info("Pipeline was modified. New pipeline is \"%s\".",
+            #                  pipe)
+            print "Pipeline was modified. New pipeline is \"%s\".", pipe
         else:
-            pass  # (WIS) print "Pipeline is \"%s\"", pipe
+            # self.logger.debug("Pipeline is \"%s\"", pipe)
+            print "Pipeline is \"%s\"", pipe
 
 
 def app_factory(global_conf, **local_conf):
