@@ -149,3 +149,7 @@ def run_wsgi(conf_path, app_section, *args, **kwargs):
     global_conf = None
     run_server(conf, logger, sock, global_conf=global_conf)
     return 0
+class WSGIContext(object):
+
+    def __init__(self,wsgi_app):
+        self.app = wsgi_app
