@@ -12,11 +12,12 @@ class NamedConfigLoader(loadwsgi.ConfigLoader):
         context = super(NamedConfigLoader, self).get_context(
             object_type, name=name, global_conf=global_conf)
         context.name = name
-        print('context = %s >> context.name = %s'% (context,context.name))
         return context
 
 
 loadwsgi.ConfigLoader = NamedConfigLoader
+
+
 
 
 class PipelineWrapper(object):

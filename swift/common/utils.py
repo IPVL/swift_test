@@ -1,8 +1,20 @@
 import os
 import sys
-from optparse import OptionParser
+import uuid
+import time
 
+import codecs
+utf8_decoder = codecs.getdecoder('utf-8')
+utf8_encoder = codecs.getencoder('utf-8')
+
+from optparse import OptionParser
+from urllib import quote as _quote
 from swift import gettext_ as _
+
+
+def generate_trans_id(trans_id_suffix):
+    return 'tx%s-%010x%s' %(
+        uuid.uuid4().hex[:21],time.time(),quote(trans_id_suffix))
 
 
 def parse_options(parser=None, once=False, test_args=None):
@@ -51,3 +63,12 @@ def parse_options(parser=None, once=False, test_args=None):
     if extra_args:
         options['extra_args'] = extra_args
     return config, options
+
+def get_valid_uft8_str(str_or_unicode):
+    if isinstance(str_or_unicode,unicode):
+        (str_or_unicode,_len) = utf8_encoder(str_or_unicode,'replace')
+    (valid_utf8_str,_len)= utf8_decoder(str_or_unicode,'replace')
+    return valid_utf8_str.encode('utf8-8')
+
+def quote(value,safe='/'):
+    return _quote(get_valid_uft8_str(value),safe)
