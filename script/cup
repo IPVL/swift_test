@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# USAGE: ./cup comment[/uncomment] <path_to_folder[/files/"file file .."/"folder folder ..."]> <marker>
+
 USAGE="USAGE:\
 		\ncup command file/folder[\"f f ...\"] [option]\n
 		\ncommand:\t'comment' - comment out 'print' in python file.

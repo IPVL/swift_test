@@ -1,7 +1,9 @@
 from swift.ipvl.inspect_custom import whoami, whosdaddy
+import pprint
 
 
 pass  # (WIS) print __name__
+pp = pprint.PrettyPrinter(indent=3)
 
 
 class CatchErrorMiddleware(object):
@@ -13,6 +15,7 @@ class CatchErrorMiddleware(object):
 
     def __call__(self, env, start_response):
         pass  # (WIS) print "%s %s\n" % (self.__class__.__name__, env)
+        pp.pprint(env)
         start_response('200 OK', [('Content-Type', 'text/plain')])
         return self.__class__.__name__ + "  ->  " + self.app(env, start_response)
 
