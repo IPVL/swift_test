@@ -3,7 +3,7 @@ import UserDict
 from email.utils import parsedate
 from datetime import datetime,tzinfo,timedelta
 import time
-
+import random
 
 
 
@@ -206,6 +206,42 @@ def _resp_content_type_property():
 
     return property(getter,setter,doc = 'Retrieve and set the Response Content-type header')
 
+def _resp_charset_property():
+
+    def getter(self):
+        if '; charset' in self.headers['content-type']:
+            return self.headers['content-type'].split(';charset=')[1]
+
+    def setter(self,value):
+        if 'content-type' in self.headers:
+            self.headers['content-type'] = self.headers['content-type'].split(';')[0]
+            if value:
+                self.headers['content-type'] += '; charset='+value
+
+    return property(getter,setter,doc='Retrieve and set the response charset')
+
+
+def _resp_app_iter_property():
+    """
+    Set and retrieve Response.app_iter
+    Mostly a pass-through to Response._app_iter; it's a property so it can zero
+    out an existing content-length on assignment.
+    """
+
+    def getter(self):
+        return self._app_iter
+
+    def setter(self,value):
+        if isinstance(value,(list,tuple)):
+            self.content_length = sum(map(len,value))
+        elif value is not None:
+            self.content_length = None
+            self._body = None
+        self._app_iter = value
+
+    return property(getter,setter,doc='Retrieve and set the response app_iter')
+
+
 def _resp_status_property():
     def getter(self):
         return '%s %s'%(self.status_int,self.title)
@@ -213,6 +249,7 @@ def _resp_status_property():
         if isinstance(value,(int,long)):
             self.status_int = value
             self.explanation = self.title = RESPONSE_REASONS[value][0]
+
 
 def _host_url_property():
     def getter(self):
@@ -228,10 +265,44 @@ class Response(object):
     body = _resp_body_property()
     host_url = _host_url_property()
     last_modified = _datetime_property('last-modified')
+    location = _header_property('location')
+    accept_ranges = _header_property('accept-ranges')
+    charset = _resp_charset_property()
+    app_iter = _resp_app_iter_property()
 
-    # def __init__(self,environ):
-    #     self.environ = environ
-    #     self.headers = HeaderEnvironProxy(self.environ)
+
+    def __init__(self,body=None,status=200, headers = None,app_iter = None,request = None,conditional_response=False,
+                 conditional_etag=None,**kw):
+        self.headers = headers
+        self.conditional_response = conditional_response
+        self._conditional_etag = conditional_etag
+        self.request = request
+        self.body = body
+        self.app_iter = app_iter
+        self.status = status
+        self.boundary = '%.32x'%random.randint(0,256 ** 16)
+        if request:
+            self.environ = request.environ
+        else:
+            self.environ = {}
+
+        if headers:
+            if self._body and 'Content-Length' in headers:
+                # If body is not empty, prioritize actual body length over
+                # content_length in headers
+                del headers['Content-Length']
+            self.headers.update(headers)
+        if self.status_int == 401 and 'www-authenticate' not in self.headers:
+            self.headers.update({'www-authenticate': self.www_authenticate()})
+        for key, value in kw.iteritems():
+            setattr(self, key, value)
+        # When specifying both 'content_type' and 'charset' in the kwargs,
+        # charset needs to be applied *after* content_type, otherwise charset
+        # can get wiped out when content_type sorts later in dict order.
+        if 'charset' in kw and 'content_type' in kw:
+            self.charset = kw['charset']
+
+
 
 class HTTPException(Response,Exception):
     def __init__(self,*args, **kwargs):
