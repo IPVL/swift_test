@@ -1,18 +1,15 @@
-import os
+from __future__ import print_function
+import os,itertools
 import sys
 import uuid
 import time
 import errno
 import random
 import weakref
-
-
-from __future__ import print_function
-
-
 import codecs
 from logging.handlers import SysLogHandler
 import logging
+
 utf8_decoder = codecs.getdecoder('utf-8')
 utf8_encoder = codecs.getencoder('utf-8')
 
@@ -20,7 +17,7 @@ from optparse import OptionParser
 from urllib import quote as _quote
 from swift import gettext_ as _
 from eventlet.green import socket,threading
-
+from eventlet import Timeout
 
 class StatsdClient(object):
     def __init__(self,host,port,base_prefix = '',tail_prefix = '',default_sample_rate = 1,sample_rate_factor=1,logger = 1):
@@ -47,6 +44,10 @@ class StatsdClient(object):
 
 
 class LoggingHandlerWeakRef(weakref.ref):
+    """
+    Like a weak reference, but passes through a couple methods that logging
+    handlers need.
+    """
 
     def close(self):
         referent = self()
@@ -107,6 +108,41 @@ class LogAdapter(logging.LoggerAdapter,object):
         return msg,kwargs
 
 
+    def _exception(self,msg,*args,**kwargs):
+        logging.LoggerAdapter.exception(self,msg,*args,**kwargs)
+
+
+    def exception(self, msg, *args, **kwargs):
+
+        _junk,exc,_junk = sys.exc_info()
+        call = self.error
+        emsg = ''
+
+        if isinstance(exc,OSError):
+            if exc.errno in (errno.EIO,errno.ENOSPC):
+                emsg = str(exc)
+            else:
+                call = self._exception
+        elif isinstance(exc, socket.error):
+            if exc.errno == errno.ECONNREFUSED:
+                emsg = _('Connection refused')
+            elif exc.errno == errno.EHOSTUNREACH:
+                emsg = _('Host unreachable')
+            elif exc.errno == errno.ETIMEDOUT:
+                emsg = _('Connection timeout')
+            else:
+                call = self._exception
+        elif isinstance(exc, Timeout):
+            emsg = exc.__class__.__name__
+            if hasattr(exc,'seconds'):
+                emsg += '(%ss)'%exc.seconds
+            # if isinstance(exc, swift.common.exceptions.MessageTimeout):
+            #     if exc.msg:
+            #         emsg += ' %s' % exc.msg
+
+        else:
+            call = self._exception
+        call('%s %s' %(msg,emsg),*args,**kwargs)
 
 class SwiftLogFormatter(logging.Formatter):
     """
@@ -272,9 +308,16 @@ def get_logger(conf,name=None,log_to_console=False,log_route=None,fmt="%(server)
 
 
 def generate_trans_id(trans_id_suffix):
-    return 'tx%s-%010x%s' %(
-        uuid.uuid4().hex[:21],time.time(),quote(trans_id_suffix))
+    print('in generate_trans_id function')
+    a = uuid.uuid4().hex[:21]
+    print('a = %s' %a)
+    b = time.time()
+    print('b = %s '% b)
+    c = quote(trans_id_suffix)
+    print('and c = %s '%(c))
 
+    # return 'tx%s-%010x%s' % (uuid.uuid4().hex[:21], time.time(), quote(trans_id_suffix))
+    return 'tx%s-%010x%s' % (a,b, c)
 
 def parse_options(parser=None, once=False, test_args=None):
     """
@@ -323,11 +366,41 @@ def parse_options(parser=None, once=False, test_args=None):
         options['extra_args'] = extra_args
     return config, options
 
-def get_valid_uft8_str(str_or_unicode):
-    if isinstance(str_or_unicode,unicode):
-        (str_or_unicode,_len) = utf8_encoder(str_or_unicode,'replace')
-    (valid_utf8_str,_len)= utf8_decoder(str_or_unicode,'replace')
-    return valid_utf8_str.encode('utf8-8')
+def get_valid_utf8_str(str_or_unicode):
+    print('get_valid_utf_str function ')
+    if isinstance(str_or_unicode, unicode):
+        (str_or_unicode, _len) = utf8_encoder(str_or_unicode,'replace')
+        print('str_or_unicode = %s,_len = %s'%(str_or_unicode,_len))
 
-def quote(value,safe='/'):
-    return _quote(get_valid_uft8_str(value),safe)
+    if str_or_unicode is None:
+        print('None object cannot be unicoded')
+        return None
+        #raise TypeError('None object cannot be unicoded')
+    (valid_utf8_str, _len)= utf8_decoder(str_or_unicode,'replace')
+    print('valid_utf8_str = %s,_len = %s'%(valid_utf8_str,_len))
+    return valid_utf8_str.encode('utf-8')
+
+def quote(value, safe='/'):
+    print('in quote function ')
+    # return _quote(get_valid_utf8_str(value), safe)
+    if value is None:
+           return ''
+    return _quote(get_valid_utf8_str(value), safe)
+
+class CloseableChain(object):
+    """
+    Like itertools.chain, but with a close method that will attempt to invoke
+    its sub-iterators' close methods, if any.
+    """
+    def __init__(self, *iterables):
+        self.iterables = iterables
+
+    def __iter__(self):
+        return iter(itertools.chain(*(self.iterables)))
+
+    def close(self):
+        for it in self.iterables:
+            close_method = getattr(it, 'close', None)
+            if close_method:
+                close_method()
+

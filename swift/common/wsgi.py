@@ -1,5 +1,6 @@
 from paste.deploy import loadwsgi
 from eventlet import wsgi, listen
+from swift.common.utils import CloseableChain
 
 
 class NamedConfigLoader(loadwsgi.ConfigLoader):
@@ -144,12 +145,41 @@ def run_wsgi(conf_path, app_section, *args, **kwargs):
     }
 
     logger = None
-    sock = listen(('127.0.0.1', 8080))
+    sock = listen(('127.0.0.1', 8081))
     # sock2 = listener.dup()
     global_conf = None
     run_server(conf, logger, sock, global_conf=global_conf)
     return 0
+
 class WSGIContext(object):
 
     def __init__(self,wsgi_app):
         self.app = wsgi_app
+
+    def _start_response(self, status, headers, exc_info=None):
+        """
+        Saves response info without sending it to the remote client.
+        Uses the same semantics as the usual WSGI start_response.
+        """
+        self._response_status = status
+        self._response_headers = headers
+        self._response_exc_info = exc_info
+
+    def _app_call(self, env):
+        """
+        Ensures start_response has been called before returning.
+        """
+        self._response_status = None
+        self._response_headers = None
+        self._response_exc_info = None
+        resp = self.app(env, self._start_response)
+        # if start_response has been called, just return the iter
+        if self._response_status is not None:
+            return resp
+        resp = iter(resp)
+        try:
+            first_chunk = resp.next()
+        except StopIteration:
+            return iter([])
+        else:  # We got a first_chunk
+            return CloseableChain([first_chunk], resp)
