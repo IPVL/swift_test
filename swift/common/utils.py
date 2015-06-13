@@ -10,6 +10,9 @@ import codecs
 from logging.handlers import SysLogHandler
 import logging
 
+
+print('Hello 2')
+
 utf8_decoder = codecs.getdecoder('utf-8')
 utf8_encoder = codecs.getencoder('utf-8')
 

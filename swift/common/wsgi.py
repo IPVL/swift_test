@@ -1,6 +1,10 @@
 from paste.deploy import loadwsgi
 from eventlet import wsgi, listen
 from swift.common.utils import CloseableChain
+import logging
+# import logging.config
+# logging.config.fileConfig('logFile1.conf')
+logger = logging.getLogger('wsgi.py')
 
 
 class NamedConfigLoader(loadwsgi.ConfigLoader):
@@ -17,9 +21,6 @@ class NamedConfigLoader(loadwsgi.ConfigLoader):
 
 
 loadwsgi.ConfigLoader = NamedConfigLoader
-
-
-
 
 class PipelineWrapper(object):
     """
@@ -116,6 +117,7 @@ def loadapp(conf_file, global_conf=None, allow_modify_pipeline=True):
     Loads a context from a config file, and if the context is a pipeline
     then presents the app with the opportunity to modify the pipeline.
     """
+    logger.info('++++++++++++++++start(loadapp)++++++++++++++++in wsgi')
     global_conf = global_conf or {}
     ctx = loadcontext(loadwsgi.APP, conf_file, global_conf=global_conf)
     if ctx.object_type.name == 'pipeline':
@@ -140,6 +142,7 @@ def run_wsgi(conf_path, app_section, *args, **kwargs):
     :param app_section: App name from conf file to load config from
     :returns: 0 if successful, nonzero otherwise
     """
+    print('++++++++++++++++start(loadapp)++++++++++++++++in wsgi')
     conf = {
         '__file__': conf_path
     }
@@ -155,6 +158,7 @@ class WSGIContext(object):
 
     def __init__(self,wsgi_app):
         self.app = wsgi_app
+        print('app in wsgiContext in wsgi.py = %s '%self.app)
 
     def _start_response(self, status, headers, exc_info=None):
         """
@@ -169,6 +173,7 @@ class WSGIContext(object):
         """
         Ensures start_response has been called before returning.
         """
+        print('this is _app_call in wsgi ')
         self._response_status = None
         self._response_headers = None
         self._response_exc_info = None
@@ -183,3 +188,18 @@ class WSGIContext(object):
             return iter([])
         else:  # We got a first_chunk
             return CloseableChain([first_chunk], resp)
+
+
+    def _get_status_int(self):
+        """
+        Returns the HTTP status int from the last called self._start_response
+        result.
+        """
+        return int(self._response_status.split(' ', 1)[0])
+
+    def _response_header_value(self, key):
+        "Returns str of value for given header key or None"
+        for h_key, val in self._response_headers:
+            if h_key.lower() == key.lower():
+                return val
+        return None

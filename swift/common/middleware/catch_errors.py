@@ -4,10 +4,12 @@ from swift.common.wsgi import WSGIContext
 from swift.common.swob import HTTPServerError
 pass  # (WIS) print __name__
 from swift import gettext_ as _
-import logging
-import logging.config
+from swift.common.swob import Request
 
-logging.config.fileConfig('logFile.conf')
+import logging
+# import logging.config
+#
+# logging.config.fileConfig('logFile1.conf', disable_existing_loggers=False)
 logger = logging.getLogger('catch_error')
 
 logger.debug('this is log test')
@@ -35,18 +37,18 @@ class CatchErrorsContext(WSGIContext):
         # trans_id = 'abc123sujon'
         logger.debug('trans_id')
         self.logger.debug('transiction id ..')
-        print('trans_id = %s '% trans_id)
+        self.logger.info('trans_id = %s '% trans_id)
         env['swift.trans_id'] = trans_id
 
         try:
-            print('this is app call')
+            self.logger.info('this is app call')
             self.logger.info('after adding tran_id environment = %s'% env)
             resp = self._app_call(env)
-            print('resp in handle request in catch_error.py in try block= %s'%resp)
+            self.logger.info('resp in handle request in catch_error.py in try block= %s'%resp)
         except:
             logger.debug('Error: An error occurred')
             self.logger.exception(_('Error: An error occurred'))
-            resp = HTTPServerError() # for next day
+            resp = HTTPServerError(request=Request(env),body='An error occurred',content_type='text/plain') # for next day
             resp.headers['X-Trans-Id'] = trans_id
             return resp(env,start_response)
 
@@ -67,7 +69,9 @@ class CatchErrorMiddleware(object):
         self.app = app
         # self.logger = get_logger(conf,log_route='catch-errors')
         self.logger = logging.getLogger('catch-errors')
+        self.logger.info('app = %s in CatchErrorMiddleware '%self.app)
         self.trans_id_suffix = conf.get('trans_id_suffix')
+
 
     def __call__(self, env, start_response):
         pass  # (WIS) print "%s %s\n" % (self.__class__.__name__, env)
@@ -76,21 +80,23 @@ class CatchErrorMiddleware(object):
                                      self.logger,
                                      self.trans_id_suffix)
 
-        # return self.__class__.__name__ + "  ->  " + self.app(env, start_response)
-        print 'env = ',env,
-        print 'start response = %s'%start_response
+        # return
+        self.logger.info(self.__class__.__name__ + "  ->  " + self.app(env, start_response))
+        self.logger.info( 'env = ',env,)
+        self.logger.info('start response = %s'%start_response)
         return context.handle_request(env,start_response)
 
 
 def filter_factory(global_conf, **local_conf):
     """Returns a WSGI filter app for use with paste.deploy."""
-    pass  # (WIS) print "%s (%s -> %s)" % (__name__, whosdaddy(), whoami())
+    pass  # (WIS)
+    logger.info( "%s (%s -> %s)" % (__name__, whosdaddy(), whoami()))
     conf = global_conf.copy()
     conf.update(local_conf)
 
     def except_filter(app):
-        pass  # (WIS) print "%s (%s -> %s)" % (__name__, whosdaddy(), whoami())
-        print('app = %s'%app)
+        pass  # (WIS)
+        logger.info( 'app = %s'%app)
         logger.info("%s (%s -> %s)" % (__name__, whosdaddy(), whoami()))
         return CatchErrorMiddleware(app, conf)
     return except_filter

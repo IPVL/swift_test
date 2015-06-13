@@ -1,10 +1,12 @@
 from functools import partial
 import UserDict
+from StringIO import StringIO
+
 from email.utils import parsedate
 from datetime import datetime,tzinfo,timedelta
 import time
 import random
-
+import re
 
 
 RESPONSE_REASONS = {
@@ -77,6 +79,15 @@ class _UTC(tzinfo):
 
 
 UTC = _UTC()
+
+
+class WsgiStringIO(StringIO):
+    def set_hundred_continue_response_headers(self,headers):
+        pass
+
+    def send_hundred_continue_response(self):
+        pass
+
 
 
 def _datetime_property(header):
@@ -254,7 +265,169 @@ def _resp_status_property():
 def _host_url_property():
     def getter(self):
         if 'HTTP_HOST' in self.environ:
-            host = ''
+            host = self.environ['HTTP_HOST']
+        else:
+            host = '%s:%s'%(self.environ['SERVER_NAME'],
+                            self.environ['SERVER_PORT'])
+        scheme = self.environ.get('wsgi.url_scheme', 'http')
+
+        if scheme == 'http' and host.endswith(':80'):
+            host, port = host.rsplit(':',1)
+        elif scheme == 'https' and host.endswith(':443'):
+            host,port = host.rsplit(':',1)
+        return '%s://%s'%(scheme,host)
+
+    return property(getter,doc='Get url for request/response up to path')
+
+def _req_fancy_property(cls,header,even_if_nonexistent=False):
+
+    def getter(self):
+        try:
+            if header in self.headers or even_if_nonexistent:
+                return cls(self.headers.get(header))
+        except ValueError:
+            return None
+
+    def setter(self,value):
+        self.headers[header] = value
+
+    return property(getter,setter,doc=("Retrieve and set the %s "
+                    "property in the WSGI environ, as a %s object") %
+                    (header, cls.__name__))
+
+class Range(object):
+    def __init__(self,headerval):
+        headerval = headerval.replace(' ','')
+        if not headerval.lower().startswith('bytes='):
+            raise ValueError('Invalid Range header : %s'%headerval)
+        self.ranges = []
+
+        for rng in headerval[6:].split(','):
+            if rng.find('-') == -1:
+                raise ValueError('Invalid Range header: %s' % headerval)
+            start,end = rng.split('-',1)
+
+            if start:
+                start = int(start)
+            else:
+                start = None
+
+            if end:
+                end = int(end)
+                if start is not None and end <start:
+                    raise ValueError('Invalid Range header: %s' % headerval)
+
+
+            else:
+                end = None
+                if start is None:
+                    raise ValueError('Invalid Range header: %s' % headerval)
+            self.ranges.append(start,end)
+
+    def __str__(self):
+        string = 'bytes='
+        for start, end in self.ranges:
+            if start is not None:
+                string += str(start)
+            string += '-'
+            if end is not None:
+                 string += str(end)
+            string += ','
+        return string.rstrip(',')
+
+class Match(object):
+
+    def __init__(self,headerval):
+        self.tags = set()
+        for tag in headerval.split(', '):
+            if tag.startswith('"') and tag.endswith('"'):
+                self.tags.add(tag[1:-1])
+            else:
+                self.tags.add(tag)
+
+    def __contains__(self, val):
+        return '*' in self.tags or val in self.tags
+
+class Accept(object):
+
+    token = r'[^()<>@,;:\"/\[\]?={}\x00-\x20\x7f]+'
+    qdtext = r'[^"]'
+    quoted_pair = r'(?:\\.)'
+    quoted_string = r'"(?:' + qdtext + r'|' + quoted_pair + r')*"'
+    extension = (r'(?:\s*;\s*(?:' + token + r")\s*=\s*" + r'(?:' + token +
+                 r'|' + quoted_string + r'))')
+    acc = (r'^\s*(' + token + r')/(' + token +
+           r')(' + extension + r'*?\s*)$')
+    acc_pattern = re.compile(acc)
+
+    def __init__(self,headerval):
+        self.headerval = headerval
+
+    def __repr__(self):
+        return self.headerval
+
+
+def _req_environ_property(environ_field):
+
+    def getter(self):
+        return self.environ.get(environ_field,None)
+
+    def setter(self,value):
+        if isinstance(value,unicode):
+            self.environ[environ_field] = value.encode('utf-8')
+        else:
+            self.environ[environ_field] = value
+
+    return property(getter,setter, doc=("Get and set the %s property "
+                    "in the WSGI environment") % environ_field)
+
+def _req_body_property():
+
+
+    def getter(self):
+        body = self.environ['wsgi.input'].read()
+        self.environ['wsgi.input'] = WsgiStringIO(body)
+        return body
+
+    def setter(self,value):
+        self.environ['wsgi.input'] = WsgiStringIO(value)
+        self.environ['CONTENT_LENGTH'] = str(len(value))
+
+    return property(getter,setter,doc='Get and set the request body str')
+
+
+class Request(object):
+
+    range = _req_fancy_property(Range,'range')
+    if_none_match = _req_fancy_property(Match,'if_none_match')
+    accept = _req_fancy_property(Accept,'accept',True)
+    method = _req_environ_property('REQUEST_METHOD')
+    referrer = referer = _req_environ_property('HTTP_REFERER')
+    script_name = _req_environ_property('SCRIPT_NAME')
+    path_info = _req_environ_property('PATH_INFO')
+    host = _req_environ_property('HTTP_HOST')
+    host_url = _host_url_property()
+    remote_addr = _req_environ_property('REMOTE_ADDR')
+    remote_user = _req_environ_property('REMOTE_USER')
+    user_agent = _req_environ_property('HTTP_USER_AGENT')
+    query_string = _req_environ_property('QUERY_STRING')
+    if_match = _req_fancy_property(Match, 'if-match')
+    body_file = _req_environ_property('wsgi.input')
+    content_length= _header_int_property('content-length')
+    if_modified_since = _datetime_property('if-modified-since')
+    if_unmodified_since = _datetime_property('if-unmodified-since')
+    body = _req_body_property()
+    charset = None
+    _params_cache = None
+    _timestamp = None
+    acl = _req_environ_property('swob.ACL')
+
+
+    def __init__(self,environ):
+        self.environ = environ
+        self.headers = HeaderEnvironProxy(self.environ)
+
+
 
 class Response(object):
     content_length = _header_int_property('content-length')
@@ -314,5 +487,8 @@ class StatusMap(object):
 
 status_map = StatusMap()
 
-
+HTTPOk = status_map[200]
+HTTPCreated = status_map[201]
+HTTPAccepted = status_map[202]
+HTTPUnauthorized = status_map[401]
 HTTPServerError = status_map[500]
