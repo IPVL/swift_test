@@ -22,6 +22,8 @@ class CatchErrorMiddleware(object):
 
 def filter_factory(global_conf, **local_conf):
     """Returns a WSGI filter app for use with paste.deploy."""
+    print global_conf
+    print local_conf
     pass  # (WIS) print "%s (%s -> %s)" % (__name__, whosdaddy(), whoami())
     conf = global_conf.copy()
     conf.update(local_conf)

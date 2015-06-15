@@ -125,6 +125,9 @@ def loadapp(conf_file, global_conf=None, allow_modify_pipeline=True):
 
 
 def run_server(conf, logger, sock, global_conf=None):
+    print conf
+    print conf['__file__']
+    print global_conf
     app = loadapp(conf['__file__'], global_conf=global_conf)
     wsgi.server(sock=sock, site=app)
 

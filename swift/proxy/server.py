@@ -65,6 +65,8 @@ class Application(object):
 
 def app_factory(global_conf, **local_conf):
     """paste.deploy app factory for creating WSGI proxy apps."""
+    print global_conf
+    print local_conf
     pass  # (WIS) print "%s (%s -> %s)" % (__name__, whosdaddy(), whoami())
     conf = global_conf.copy()
     conf.update(local_conf)
