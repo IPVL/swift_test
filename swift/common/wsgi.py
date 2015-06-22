@@ -8,7 +8,7 @@ import errno
 from swift.common.utils import get_hub, config_true_value
 import eventlet
 import eventlet.debug
-
+import inspect
 
 class NamedConfigLoader(loadwsgi.ConfigLoader):
     """
@@ -249,8 +249,20 @@ def run_server(conf, logger, sock, global_conf=None):
     print "max_clients: ", max_clients
     pool = RestrictedGreenPool(size=max_clients)
     print "pool : ", pool
+    try:
+        # Disable capitalizing headers in Eventlet if possible.  This is
+        # necessary for the AWS SDK to work with swift3 middleware.
+        argspec = inspect.getargspec(wsgi.server)
+        print "argspec : ", argspec
+        if 'capitalize_response_headers' in argspec.args:
+            wsgi.server(sock, app, custom_pool=pool,
+                        capitalize_response_headers=False)
+        else:
+            wsgi.server(sock, app, custom_pool=pool)
+    except socket.error as err:
+        if err[0] != errno.EINVAL:
+            raise
 
-    wsgi.server(sock=sock, site=app)
 
 
 def run_wsgi(conf_path, app_section, *args, **kwargs):
