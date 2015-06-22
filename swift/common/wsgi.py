@@ -1,5 +1,10 @@
 from paste.deploy import loadwsgi
 from eventlet import wsgi, listen
+from eventlet.green import socket, ssl
+from eventlet import sleep
+import os
+import time
+import errno
 
 
 class NamedConfigLoader(loadwsgi.ConfigLoader):
@@ -17,6 +22,74 @@ class NamedConfigLoader(loadwsgi.ConfigLoader):
 
 loadwsgi.ConfigLoader = NamedConfigLoader
 
+def wrap_conf_type(f):
+    """
+    Wrap a function whos first argument is a paste.deploy style config uri,
+    such that you can pass it an un-adorned raw filesystem path (or config
+    string) and the config directive (either config:, config_dir:, or
+    config_str:) will be added automatically based on the type of entity
+    (either a file or directory, or if no such entity on the file system -
+    just a string) before passing it through to the paste.deploy function.
+    """
+    def wrapper(conf_path, *args, **kwargs):
+        if os.path.isdir(conf_path):
+            conf_type = 'config_dir'
+        else:
+            conf_type = 'config'
+        conf_uri = '%s:%s' % (conf_type, conf_path)
+        return f(conf_uri, *args, **kwargs)
+    return wrapper
+
+
+appconfig = wrap_conf_type(loadwsgi.appconfig)
+
+
+def get_socket(conf):
+    """Bind socket to bind ip:port in conf
+
+    :param conf: Configuration dict to read settings from
+
+    :returns : a socket object as returned from socket.listen or
+               ssl.wrap_socket if conf specifies cert_file
+    """
+    try:
+        bind_port = int(conf['bind_port'])
+    except (ValueError, KeyError, TypeError):
+        raise ConfigFilePortError()
+    bind_addr = (conf.get('bind_ip', '0.0.0.0'), bind_port)
+    address_family = [addr[0] for addr in socket.getaddrinfo(bind_addr[0], bind_addr[1], socket.AF_UNSPEC, socket.SOCK_STREAM) if addr[0] in (socket.AF_INET, socket.AF_INET6)][0]
+    sock = None
+    bind_timeout = int(conf.get('bind_timeout', 30))
+    retry_until = time.time() + bind_timeout
+    warn_ssl = False
+    while not sock and time.time() < retry_until:
+        try:
+            sock = listen(bind_addr, backlog=int(conf.get('backlog', 4096)),
+                          family=address_family)
+            if 'cert_file' in conf:
+                warn_ssl = True
+                sock = ssl.wrap_socket(sock, certfile=conf['cert_file'],
+                                       keyfile=conf['key_file'])
+        except socket.error as err:
+            if err.args[0] != errno.EADDRINUSE:
+                raise
+            sleep(0.1)
+    if not sock:
+        raise Exception(('Could not bind to %s:%s after trying for %s seconds') % (bind_addr[0], bind_addr[1], bind_timeout))
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    # in my experience, sockets can hang around forever without keepalive
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+
+    if hasattr(socket, 'TCP_KEEPIDLE'):
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 600)
+    if warn_ssl:
+        ssl_warning_message = ('WARNING: SSL should only be enabled for '
+                                'testing purposes. Use external SSL '
+                                'termination for a production deployment.')
+        #get_logger(conf).warning(ssl_warning_message)
+        print(ssl_warning_message)
+    return sock
 
 class PipelineWrapper(object):
     """
@@ -136,13 +209,46 @@ def run_wsgi(conf_path, app_section, *args, **kwargs):
     :param app_section: App name from conf file to load config from
     :returns: 0 if successful, nonzero otherwise
     """
-    conf = {
-        '__file__': conf_path
-    }
+    # conf = {
+    #     '__file__': conf_path
+    # }
+
+    # Load configuration, Set logger and Load request processor
+    try:
+        (conf, logger, log_name) = \
+            _initrp(conf_path, app_section, *args, **kwargs)
+    except ConfigFileError as e:
+        print(e)
+        return 1
 
     logger = None
-    sock = listen(('127.0.0.1', 8080))
+    #sock = listen(('127.0.0.1', 8080))
+    # bind to address and port
+    try:
+        sock = get_socket(conf)
+    except ConfigFilePortError:
+        msg = 'bind_port wasn\'t properly set in the config file. ' \
+              'It must be explicitly set to a valid port number.'
+        #logger.error(msg)
+        print(msg)
+        return 1
     # sock2 = listener.dup()
     global_conf = None
     run_server(conf, logger, sock, global_conf=global_conf)
     return 0
+
+class ConfigFileError(Exception):
+    pass
+
+class ConfigFilePortError(ConfigFileError):
+    pass
+
+
+def _initrp(conf_path, app_section, *args, **kwargs):
+    try:
+        conf = appconfig(conf_path, name=app_section, relative_to="./")
+    except Exception as e:
+        raise ConfigFileError("Error trying to load config from %s: %s" %
+                              (conf_path, e))
+
+    return (conf, None, None)
