@@ -263,7 +263,7 @@ def run_server(conf, logger, sock, global_conf=None):
         if err[0] != errno.EINVAL:
             raise
 
-
+    print "pool.waitall(): ", pool.waitall()
 
 def run_wsgi(conf_path, app_section, *args, **kwargs):
     """
