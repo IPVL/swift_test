@@ -1,12 +1,13 @@
 from paste.deploy import loadwsgi
 from eventlet import wsgi, listen
 from eventlet.green import socket, ssl
-from eventlet import sleep
+from eventlet import sleep, GreenPool
 import os
 import time
 import errno
-import eventlet
 from swift.common.utils import get_hub, config_true_value
+import eventlet
+import eventlet.debug
 
 
 class NamedConfigLoader(loadwsgi.ConfigLoader):
@@ -92,6 +93,21 @@ def get_socket(conf):
         #get_logger(conf).warning(ssl_warning_message)
         print(ssl_warning_message)
     return sock
+
+class RestrictedGreenPool(GreenPool):
+    """
+    Works the same as GreenPool, but if the size is specified as one, then the
+    spawn_n() method will invoke waitall() before returning to prevent the
+    caller from doing any other work (like calling accept()).
+    """
+    def __init__(self, size=1024):
+        super(RestrictedGreenPool, self).__init__(size=size)
+        self._rgp_do_wait = (size == 1)
+
+    def spawn_n(self, *args, **kwargs):
+        super(RestrictedGreenPool, self).spawn_n(*args, **kwargs)
+        if self._rgp_do_wait:
+            self.waitall()
 
 class PipelineWrapper(object):
     """
@@ -224,8 +240,16 @@ def run_server(conf, logger, sock, global_conf=None):
     eventlet_debug = config_true_value(conf.get('eventlet_debug', 'no'))
     print "eventlet_debug: ", eventlet_debug
 
+    eventlet.debug.hub_exceptions(eventlet_debug)
+    print "eventlet.debug.hub_exceptions(eventlet_debug) : ", eventlet.debug.hub_exceptions(eventlet_debug)
 
     app = loadapp(conf['__file__'], global_conf=global_conf)
+
+    max_clients = int(conf.get('max_clients', '1024'))
+    print "max_clients: ", max_clients
+    pool = RestrictedGreenPool(size=max_clients)
+    print "pool : ", pool
+
     wsgi.server(sock=sock, site=app)
 
 
