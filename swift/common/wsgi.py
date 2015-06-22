@@ -214,8 +214,12 @@ def run_server(conf, logger, sock, global_conf=None):
     wsgi.WRITE_TIMEOUT = int(conf.get('client_timeout') or 60)
     print "THE PROGRAM IS IN THE RUN_SERVER"
 
+    print "eventlet.hubs.get_default_hub(): ", eventlet.hubs.get_default_hub()
+    print "eventlet.hubs.get_hub(): ", eventlet.hubs.get_hub()
     print "GET_HUB() : ", get_hub()
+
     eventlet.hubs.use_hub(get_hub())
+
     eventlet.patcher.monkey_patch(all=False, socket=True)
 
 
