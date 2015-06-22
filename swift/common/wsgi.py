@@ -6,7 +6,7 @@ import os
 import time
 import errno
 import eventlet
-from swift.common.utils import get_hub
+from swift.common.utils import get_hub, config_true_value
 
 
 class NamedConfigLoader(loadwsgi.ConfigLoader):
@@ -219,8 +219,10 @@ def run_server(conf, logger, sock, global_conf=None):
     print "GET_HUB() : ", get_hub()
 
     eventlet.hubs.use_hub(get_hub())
-
     eventlet.patcher.monkey_patch(all=False, socket=True)
+
+    eventlet_debug = config_true_value(conf.get('eventlet_debug', 'no'))
+    print "eventlet_debug: ", eventlet_debug
 
 
     app = loadapp(conf['__file__'], global_conf=global_conf)

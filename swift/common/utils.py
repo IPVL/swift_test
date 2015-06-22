@@ -5,6 +5,17 @@ from optparse import OptionParser
 from swift import gettext_ as _
 
 
+# Used when reading config values
+TRUE_VALUES = set(('true', '1', 'yes', 'on', 't', 'y'))
+def config_true_value(value):
+    """
+    Returns True if the value is either True or a string in TRUE_VALUES.
+    Returns False otherwise.
+    """
+    return value is True or \
+        (isinstance(value, basestring) and value.lower() in TRUE_VALUES)
+
+
 def get_hub():
     """
     Checks whether poll is available and falls back
