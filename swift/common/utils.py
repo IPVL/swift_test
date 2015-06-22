@@ -5,6 +5,31 @@ from optparse import OptionParser
 from swift import gettext_ as _
 
 
+def get_hub():
+    """
+    Checks whether poll is available and falls back
+    on select if it isn't.
+
+    Note about epoll:
+
+    Review: https://review.openstack.org/#/c/18806/
+
+    There was a problem where once out of every 30 quadrillion
+    connections, a coroutine wouldn't wake up when the client
+    closed its end. Epoll was not reporting the event or it was
+    getting swallowed somewhere. Then when that file descriptor
+    was re-used, eventlet would freak right out because it still
+    thought it was waiting for activity from it in some other coro.
+    """
+    try:
+        import select
+        if hasattr(select, "poll"):
+            return "poll"
+        return "selects"
+    except ImportError:
+        return None
+
+
 def parse_options(parser=None, once=False, test_args=None):
     """
     Parse standard swift server/daemon options with optparse.OptionParser.

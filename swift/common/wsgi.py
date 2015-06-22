@@ -5,6 +5,8 @@ from eventlet import sleep
 import os
 import time
 import errno
+import eventlet
+from swift.common.utils import get_hub
 
 
 class NamedConfigLoader(loadwsgi.ConfigLoader):
@@ -197,6 +199,26 @@ def loadapp(conf_file, global_conf=None, allow_modify_pipeline=True):
     return ctx.create()
 
 def run_server(conf, logger, sock, global_conf=None):
+    # Ensure TZ environment variable exists to avoid stat('/etc/localtime') on
+    # some platforms. This locks in reported times to the timezone in which
+    # the server first starts running in locations that periodically change
+    # timezones.
+    os.environ['TZ'] = time.strftime("%z", time.gmtime())
+
+    wsgi.HttpProtocol.default_request_version = "HTTP/1.0"
+    # Turn off logging requests by the underlying WSGI software.
+    wsgi.HttpProtocol.log_request = lambda *a: None
+    # Redirect logging other messages by the underlying WSGI software.
+    wsgi.HttpProtocol.log_message = \
+        lambda s, f, *a: logger.error('ERROR WSGI: ' + f % a)
+    wsgi.WRITE_TIMEOUT = int(conf.get('client_timeout') or 60)
+    print "THE PROGRAM IS IN THE RUN_SERVER"
+
+    print "GET_HUB() : ", get_hub()
+    eventlet.hubs.use_hub(get_hub())
+    eventlet.patcher.monkey_patch(all=False, socket=True)
+
+
     app = loadapp(conf['__file__'], global_conf=global_conf)
     wsgi.server(sock=sock, site=app)
 
