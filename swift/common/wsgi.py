@@ -123,7 +123,6 @@ def loadapp(conf_file, global_conf=None, allow_modify_pipeline=True):
             func(PipelineWrapper(ctx))
     return ctx.create()
 
-
 def run_server(conf, logger, sock, global_conf=None):
     app = loadapp(conf['__file__'], global_conf=global_conf)
     wsgi.server(sock=sock, site=app)
