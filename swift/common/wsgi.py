@@ -1,5 +1,6 @@
 from paste.deploy import loadwsgi
 from eventlet import wsgi, listen
+import os
 
 
 class NamedConfigLoader(loadwsgi.ConfigLoader):
@@ -124,8 +125,38 @@ def loadapp(conf_file, global_conf=None, allow_modify_pipeline=True):
     return ctx.create()
 
 
+def wrap_conf_type(f):
+    """
+    Wrap a function whos first argument is a paste.deploy style config uri,
+    such that you can pass it an un-adorned raw filesystem path (or config
+    string) and the config directive (either config:, config_dir:, or
+    config_str:) will be added automatically based on the type of entity
+    (either a file or directory, or if no such entity on the file system -
+    just a string) before passing it through to the paste.deploy function.
+    """
+    def wrapper(conf_path, *args, **kwargs):
+        if os.path.isdir(conf_path):
+            conf_type = 'config_dir'
+        else:
+            conf_type = 'config'
+        conf_uri = '%s:%s' % (conf_type, conf_path)
+        return f(conf_uri, *args, **kwargs)
+    return wrapper
+
+
+appconfig = wrap_conf_type(loadwsgi.appconfig)
+
+
 def run_server(conf, logger, sock, global_conf=None):
     print conf
+
+    conf = appconfig(conf['__file__'], name='proxy-server', relative_to='./')
+
+    try:
+        # bind_port = int(conf['bind_port'])
+        print "port", conf['bind_port']
+    except (ValueError, KeyError, TypeError):
+        raise Exception()
     print conf['__file__']
     print global_conf
     app = loadapp(conf['__file__'], global_conf=global_conf)
